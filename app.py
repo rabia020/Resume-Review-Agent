@@ -36,9 +36,19 @@ html, body, [class*="css"]  {
 }
 
 .block-container {
-    padding-top: 2rem;
+    padding-top: 3rem;
     padding-bottom: 3rem;
     max-width: 1200px;
+}
+
+/* Hide Streamlit's default header bar so our custom topbar isn't clipped
+   underneath it, and this feels like a fully custom app. */
+header[data-testid="stHeader"] {
+    height: 0;
+    visibility: hidden;
+}
+[data-testid="stToolbar"] {
+    visibility: hidden;
 }
 
 /* Top bar */
@@ -328,7 +338,6 @@ st.markdown(
     """
     <div class="topbar">
         <div class="topbar-brand"><div class="icon-box">📄</div> REVIEW AGENT</div>
-        <div class="topbar-status">SYSTEM STATUS: <span>READY</span></div>
     </div>
     """,
     unsafe_allow_html=True,
@@ -523,7 +532,7 @@ def render_report(data: dict, candidate_label: str, job_title: str, job_url: str
         f"""
         <div class="report-card">
             <div class="report-topbar"></div>
-            <div class="eyebrow-plain">ASSESSMENT REPORT · 01</div>
+            <div class="eyebrow-plain">ASSESSMENT REPORT &middot; 01</div>
             <div class="report-header-row">
                 <div>
                     <div class="report-title">Resume Audit</div>
@@ -534,7 +543,6 @@ def render_report(data: dict, candidate_label: str, job_title: str, job_url: str
                     <div class="label">MATCH COEFFICIENT</div>
                 </div>
             </div>
-
             <div class="stat-row">
                 <div class="stat-item">
                     <div class="stat-value">{core_skills_met}</div>
@@ -549,17 +557,13 @@ def render_report(data: dict, candidate_label: str, job_title: str, job_url: str
                     <div class="stat-label">MATCH LEVEL</div>
                 </div>
             </div>
-
             <div class="eyebrow-plain">TARGET POSITION</div>
             <div class="target-position-title">{job_link_html}</div>
             <div class="target-position-summary">{data.get("summary", "")}</div>
-
             <div class="eyebrow-plain">MATCHED COMPETENCIES</div>
             <div class="badge-row">{badge_html}</div>
-
             <div class="eyebrow-danger">DETECTED GAPS</div>
             <ul class="gap-list">{gap_items_html}</ul>
-
             <div class="recommendation-box">
                 <div class="rec-title">STRATEGIC RECOMMENDATION</div>
                 <div class="rec-body">{data.get("strategic_recommendation", "")}</div>
@@ -665,7 +669,7 @@ def build_full_report_markdown(data: dict, candidate_label: str, job_title: str)
 left, right = st.columns([1, 1.25], gap="large")
 
 with left:
-    st.markdown('<div class="eyebrow-pill">PHASE 01 · CANDIDATE INTAKE</div>', unsafe_allow_html=True)
+    st.markdown('<div class="eyebrow-pill">PHASE 01 &middot; CANDIDATE INTAKE</div>', unsafe_allow_html=True)
     st.markdown(
         '<div class="hero-title">Review<br><span class="accent">Agent.</span></div>',
         unsafe_allow_html=True,

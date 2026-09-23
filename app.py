@@ -5,11 +5,12 @@ A beginner-friendly, single-agent app built with CrewAI + Streamlit + Groq.
 
 The agent takes:
   1. A candidate's resume (pasted text OR uploaded PDF)
-  2. A target job description (pasted text)
+  2. A target job description (pasted text), with optional job title/URL
 
-...and produces a structured, actionable evaluation of how well the resume
-matches the job — without inventing skills or experience the candidate
-doesn't actually have.
+...and produces a LinkedIn "Job Match"-style qualification checklist
+(✓ matched / ? unmatched with reasons) plus a structured, actionable
+evaluation of how well the resume matches the job — without inventing
+skills or experience the candidate doesn't actually have.
 """
 
 import os
@@ -66,7 +67,7 @@ def get_groq_api_key() -> str:
         st.stop()
 
 
-def build_crew(resume_text: str, job_description: str) -> Crew:
+def build_crew(resume_text: str, job_description: str, job_title: str = "", job_url: str = "") -> Crew:
     """Construct the single-agent CrewAI crew for this run."""
     groq_api_key = get_groq_api_key()
 
@@ -100,9 +101,14 @@ def build_crew(resume_text: str, job_description: str) -> Crew:
         allow_delegation=False,
     )
 
+    job_title_line = job_title.strip() if job_title and job_title.strip() else "this role"
+    job_url_line = job_url.strip() if job_url and job_url.strip() else ""
+
     task = Task(
         description=(
-            "You will be given a RESUME and a JOB DESCRIPTION below.\n\n"
+            "You will be given a RESUME and a JOB DESCRIPTION below, and "
+            f"optionally a JOB TITLE ({job_title_line}) and JOB URL "
+            f"({job_url_line or 'not provided'}).\n\n"
             "RESUME:\n"
             "----------------\n"
             f"{resume_text}\n"
@@ -111,14 +117,62 @@ def build_crew(resume_text: str, job_description: str) -> Crew:
             "----------------\n"
             f"{job_description}\n"
             "----------------\n\n"
-            "Evaluate the resume against the job description. Base every "
-            "statement strictly on the text provided — do NOT assume or "
-            "invent any skill, tool, or experience that isn't explicitly "
-            "stated or clearly implied in the resume. If information is "
-            "missing or unclear, say so rather than guessing."
+            "Evaluate the resume against the job description in two parts.\n\n"
+            "PART A - Qualification Checklist (LinkedIn 'Job Match' style):\n"
+            "1. Read the job description and separate its requirements into "
+            "'required qualifications' (must-haves, e.g. years of experience, "
+            "specific languages/frameworks/tools, degrees, certifications) "
+            "and 'additional qualifications' (nice-to-haves/preferred).\n"
+            "2. Separately, identify any qualifications mentioned that are "
+            "inherently NOT verifiable from a resume/application (soft skills "
+            "like communication, problem-solving, ability to work remotely, "
+            "teamwork, culture fit) — these belong in a third list of "
+            "qualifications typically evaluated during the application or "
+            "interview, not scored as matched/unmatched.\n"
+            "3. For every required and additional qualification, check the "
+            "resume for clear evidence. Mark it MATCHED only if the resume "
+            "explicitly supports it (or very clearly implies it); otherwise "
+            "mark it UNMATCHED and give a short, specific reason (e.g. "
+            "'No mention of PHP experience', or 'Requires 3-5 years, resume "
+            "shows 0-2 years'). Never mark something matched by assuming or "
+            "inventing experience not stated in the resume.\n"
+            "4. Compute an overall job-match level of Low, Medium, or High "
+            "based on the proportion of required qualifications matched "
+            "(roughly: 0-40% matched = Low, 41-74% = Medium, 75-100% = High).\n\n"
+            "PART B - Detailed Report:\n"
+            "Using the same qualification checklist you just built, write a "
+            "match score, strengths, gaps, and recommendations as described "
+            "in the expected output.\n\n"
+            "Base every statement strictly on the text provided — do NOT "
+            "assume or invent any skill, tool, or experience that isn't "
+            "explicitly stated or clearly implied in the resume. If "
+            "information is missing or unclear, say so rather than guessing."
         ),
         expected_output=(
-            "A structured Markdown report with EXACTLY these sections:\n\n"
+            "A structured Markdown report with EXACTLY these sections, in "
+            "this order:\n\n"
+            "## Job Match Summary\n"
+            "First line, formatted exactly like this (omit the link brackets "
+            "and just show the plain title if no URL was provided):\n"
+            f"`Job match is {{Low/Medium/High}} - [{job_title_line}]"
+            f"({job_url_line or '#'})`\n\n"
+            "Then one short sentence summarizing the overall fit, similar in "
+            "tone to: 'Your profile and resume are missing some required "
+            "qualifications...' or 'Your profile is a strong match for this "
+            "role...' as appropriate.\n\n"
+            "Then a line: `Matches X of Y required qualifications:` followed "
+            "by one bullet per required qualification, each starting with "
+            "`✓` if matched (just the qualification text) or `?` if "
+            "unmatched (the qualification text, followed by the specific "
+            "reason in parentheses).\n\n"
+            "Then a line: `Matches X of Y additional qualifications:` "
+            "followed by the same ✓ / ? bullet format for each additional "
+            "(preferred) qualification. Omit this whole block if the job "
+            "description has no additional/preferred qualifications.\n\n"
+            "Then, if applicable: `There are qualifications that will "
+            "likely be evaluated in the application or interview:` followed "
+            "by a `•` bullet for each non-verifiable soft-skill qualification "
+            "identified. Omit this block if there are none.\n\n"
             "## Match Score\n"
             "A percentage (0-100%) estimating overall fit, with one sentence "
             "justifying the number.\n\n"
@@ -164,6 +218,11 @@ else:
                 st.text(resume_text[:3000] + ("..." if len(resume_text) > 3000 else ""))
 
 st.subheader("2. Target Job Description")
+col_title, col_url = st.columns(2)
+with col_title:
+    job_title = st.text_input("Job title (optional)", placeholder="e.g. AI Engineer")
+with col_url:
+    job_url = st.text_input("Job posting URL (optional)", placeholder="e.g. https://www.linkedin.com/jobs/view/...")
 job_description = st.text_area("Paste the job description here", height=220)
 
 st.subheader("3. Run the Review")
@@ -186,7 +245,7 @@ if run_button:
     # --- Run the crew, handling Groq/runtime errors gracefully ------------
     try:
         with st.spinner("Analyzing resume against job description... this can take up to a minute."):
-            crew = build_crew(resume_text, job_description)
+            crew = build_crew(resume_text, job_description, job_title, job_url)
             result = crew.kickoff()
 
         st.success("✅ Review complete!")

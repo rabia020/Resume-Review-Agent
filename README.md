@@ -106,7 +106,7 @@ Your browser should open to `http://localhost:8501`.
 
 ---
 ## 6. Live Demo
-[Try Live App](https://resume-review-agent-app.streamlit.app/)
+[Try Resume Review App Live](https://resume-review-agent-app.streamlit.app/)
 
 ## 7. Troubleshooting
 

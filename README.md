@@ -105,8 +105,10 @@ Your browser should open to `http://localhost:8501`.
 5. The result is displayed as a formatted report in the browser.
 
 ---
+## 6. Live Demo
+[Try Live App](https://resume-review-agent-app.streamlit.app/)
 
-## 6. Troubleshooting
+## 7. Troubleshooting
 
 | Problem | Likely cause / fix |
 |---|---|

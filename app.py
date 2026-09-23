@@ -72,7 +72,7 @@ def build_crew(resume_text: str, job_description: str) -> Crew:
 
     # Point CrewAI's underlying LLM (via LiteLLM) at Groq's production model.
     llm = LLM(
-        model="groq/llama-3.3-70b-versatile",
+        model="groq/openai/gpt-oss-120b",
         api_key=groq_api_key,
         temperature=0.3,
     )
@@ -214,6 +214,6 @@ if run_button:
 # ---------------------------------------------------------------------------
 st.markdown("---")
 st.caption(
-    "Built with CrewAI, Streamlit, and Groq (llama-3.3-70b-versatile). "
+    "Built with CrewAI, Streamlit, and Groq (openai/gpt-oss-120b). "
     "This tool provides guidance only and does not guarantee interview or job outcomes."
 )

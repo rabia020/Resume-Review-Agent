@@ -14,6 +14,7 @@ does not actually have.
 """
 
 import json
+import os
 import re
 
 import streamlit as st
@@ -363,14 +364,20 @@ def extract_pdf_text(uploaded_file) -> str:
 
 
 def get_groq_api_key() -> str:
-    """Fetch the Groq API key from Streamlit secrets, with a clear error if missing."""
+    """Fetch the Groq API key from Streamlit secrets, falling back to a plain
+    environment variable (used on platforms like Render that don't support
+    .streamlit/secrets.toml)."""
     try:
         return st.secrets["GROQ_API_KEY"]
     except Exception:
+        env_key = os.environ.get("GROQ_API_KEY")
+        if env_key:
+            return env_key
         st.error(
             "⚠️ No Groq API key found. Add it to `.streamlit/secrets.toml` "
-            "locally, or in your app's *Settings → Secrets* on Streamlit "
-            "Community Cloud, as:\n\n```toml\nGROQ_API_KEY = \"your-key-here\"\n```"
+            "locally, in your app's *Settings → Secrets* on Streamlit "
+            "Community Cloud, or as a `GROQ_API_KEY` environment variable "
+            "on platforms like Render:\n\n```toml\nGROQ_API_KEY = \"your-key-here\"\n```"
         )
         st.stop()
 
@@ -433,9 +440,17 @@ def build_crew(resume_text: str, job_title: str, job_url: str, requirements: str
             "frameworks/tools, degrees, certifications) and 'additional "
             "qualifications' (nice-to-haves/preferred).\n"
             "2. Separately list any requirements that are inherently NOT "
-            "verifiable from a resume (soft skills like communication, "
-            "teamwork, stakeholder management, ability to work "
-            "independently/remotely) as interview_evaluated_qualifications.\n"
+            "verifiable from a resume as interview_evaluated_qualifications. "
+            "This includes: soft skills (communication, teamwork, "
+            "stakeholder management, ability to work independently); "
+            "work-authorization/location requirements (e.g. 'ability to "
+            "work remotely within [country]', visa sponsorship, being "
+            "based in a specific location) since a resume typically can't "
+            "prove or disprove these; and requirements phrased as personal "
+            "interest or motivation rather than a demonstrable skill (e.g. "
+            "'interest in AI agents...', 'passion for...'). Do NOT include "
+            "these in required_qualifications or additional_qualifications, "
+            "and do NOT let them lower match_percentage or match_level.\n"
             "3. For every required/additional qualification, check the "
             "resume for clear evidence. Mark 'matched': true only if the "
             "resume explicitly supports it or very clearly implies it; "
@@ -446,10 +461,14 @@ def build_crew(resume_text: str, job_title: str, job_url: str, requirements: str
             "4. Compute match_percentage (0-100) as an honest overall fit "
             "score, and match_level as one of 'Low', 'Moderate', or 'High' "
             "(roughly: 0-40% = Low, 41-74% = Moderate, 75-100% = High).\n"
-            "5. Write 3-5 genuine key_strengths, 3-5 specific gaps (plain "
-            "phrases naming what's missing, no long justification), and 3-5 "
-            "concrete, honest recommendations (never suggesting fabricating "
-            "experience).\n"
+            "5. Write 3-5 genuine key_strengths, and 3-5 concrete, honest "
+            "recommendations (never suggesting fabricating experience). "
+            "For 'gaps', write 3-5 short notes that ADD NUANCE to the "
+            "unmatched required/additional qualifications you already "
+            "identified above (e.g. a more specific detail about why "
+            "something is missing) — do NOT contradict your own matched/"
+            "unmatched flags, and do NOT introduce a gap for something you "
+            "marked matched: true.\n"
             "6. Write one strategic_recommendation: the single most "
             "impactful piece of advice, as 1-2 sentences.\n\n"
             "Base every statement strictly on the text provided — do NOT "
@@ -518,8 +537,8 @@ def render_report(data: dict, candidate_label: str, job_title: str, job_url: str
     if not badge_html:
         badge_html = '<span class="badge-pill">No competencies matched yet</span>'
 
-    gaps_for_card = data.get("gaps", []) or [q["qualification"] for q in (unmatched_required + unmatched_additional)]
-    gap_items_html = "".join(f"<li>{g}</li>" for g in gaps_for_card[:5])
+    gaps_for_card = [q["qualification"] for q in (unmatched_required + unmatched_additional)]
+    gap_items_html = "".join(f"<li>{g}</li>" for g in gaps_for_card[:5]) or "<li>No gaps detected.</li>"
 
     job_title_display = job_title.strip() if job_title.strip() else "Target Role"
     job_link_html = (
@@ -607,7 +626,7 @@ def render_report(data: dict, candidate_label: str, job_title: str, job_url: str
             for s in data.get("key_strengths", []):
                 st.markdown(f"- {s}")
 
-            st.markdown("**All gaps**")
+            st.markdown("**Additional gap notes** _(narrative context beyond the checklist above)_")
             for g in data.get("gaps", []):
                 st.markdown(f"- {g}")
 
@@ -649,7 +668,7 @@ def build_full_report_markdown(data: dict, candidate_label: str, job_title: str)
     for s in data.get("key_strengths", []):
         lines.append(f"- {s}")
 
-    lines.append("\n## Gaps")
+    lines.append("\n## Additional Gap Notes (narrative context beyond the checklist above)")
     for g in data.get("gaps", []):
         lines.append(f"- {g}")
 

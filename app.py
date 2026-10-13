@@ -382,13 +382,31 @@ def get_groq_api_key() -> str:
         st.stop()
 
 
-def parse_json_result(raw_text: str) -> dict:
-    """Strip Markdown code fences (if any) and parse the agent's JSON output."""
-    cleaned = raw_text.strip()
-    cleaned = re.sub(r"^```(json)?", "", cleaned.strip(), flags=re.IGNORECASE).strip()
-    cleaned = re.sub(r"```$", "", cleaned.strip()).strip()
-    return json.loads(cleaned)
 
+def parse_json_result(raw_text: str) -> dict:
+    """Extract and parse the JSON object from the agent's output."""
+    cleaned = raw_text.strip()
+
+    # Remove any <think>...</think> reasoning blocks
+    cleaned = re.sub(r"<think>.*?</think>", "", cleaned, flags=re.DOTALL | re.IGNORECASE)
+
+    # Remove Markdown code fences anywhere in the text
+    cleaned = re.sub(r"```(?:json)?", "", cleaned, flags=re.IGNORECASE)
+
+    # Keep only the part between the first "{" and the last "}"
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start == -1 or end == -1 or end < start:
+        raise json.JSONDecodeError("No JSON object found in model output", cleaned, 0)
+    candidate = cleaned[start:end + 1]
+
+    try:
+        # strict=False allows raw line breaks inside strings
+        return json.loads(candidate, strict=False)
+    except json.JSONDecodeError:
+        # Remove trailing commas before } or ] and try once more
+        candidate = re.sub(r",\s*([}\]])", r"\1", candidate)
+        return json.loads(candidate, strict=False)
 
 def build_crew(resume_text: str, job_title: str, job_url: str, requirements: str) -> Crew:
     """Construct the single-agent CrewAI crew for this run."""
@@ -397,12 +415,13 @@ def build_crew(resume_text: str, job_title: str, job_url: str, requirements: str
     # Groq exposes an OpenAI-compatible endpoint, so we use CrewAI's native
     # "openai" provider pointed at Groq's base URL instead of relying on
     # LiteLLM (which isn't installed by default in CrewAI 1.x).
-    llm = LLM(
+        llm = LLM(
         model="openai/gpt-oss-120b",
         base_url="https://api.groq.com/openai/v1",
         api_key=groq_api_key,
         provider="openai",
-        temperature=0.3,
+        temperature=0.1,
+        max_tokens=4000,
     )
 
     reviewer = Agent(
@@ -755,10 +774,18 @@ with right:
             render_empty_state()
         else:
             try:
+                                result = None
+                data = None
                 with st.spinner("Auditing resume against target role... this can take up to a minute."):
-                    crew = build_crew(resume_text, job_title, job_url, requirements)
-                    result = crew.kickoff()
-                    data = parse_json_result(str(result))
+                    for attempt in range(2):
+                        crew = build_crew(resume_text, job_title, job_url, requirements)
+                        result = crew.kickoff()
+                        try:
+                            data = parse_json_result(str(result))
+                            break
+                        except json.JSONDecodeError:
+                            if attempt == 1:
+                                raise
 
                 render_report(data, candidate_label, job_title, job_url)
 

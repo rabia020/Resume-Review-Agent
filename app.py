@@ -413,9 +413,8 @@ def build_crew(resume_text: str, job_title: str, job_url: str, requirements: str
     groq_api_key = get_groq_api_key()
 
     # Groq exposes an OpenAI-compatible endpoint, so we use CrewAI's native
-    # "openai" provider pointed at Groq's base URL instead of relying on
-    # LiteLLM (which isn't installed by default in CrewAI 1.x).
-        llm = LLM(
+    # "openai" provider pointed at Groq's base URL.
+    llm = LLM(
         model="openai/gpt-oss-120b",
         base_url="https://api.groq.com/openai/v1",
         api_key=groq_api_key,

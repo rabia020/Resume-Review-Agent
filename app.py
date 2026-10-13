@@ -382,7 +382,6 @@ def get_groq_api_key() -> str:
         st.stop()
 
 
-
 def parse_json_result(raw_text: str) -> dict:
     """Extract and parse the JSON object from the agent's output."""
     cleaned = raw_text.strip()
@@ -407,6 +406,7 @@ def parse_json_result(raw_text: str) -> dict:
         # Remove trailing commas before } or ] and try once more
         candidate = re.sub(r",\s*([}\]])", r"\1", candidate)
         return json.loads(candidate, strict=False)
+
 
 def build_crew(resume_text: str, job_title: str, job_url: str, requirements: str) -> Crew:
     """Construct the single-agent CrewAI crew for this run."""
@@ -772,9 +772,9 @@ with right:
             st.warning("⚠️ Please describe the target role's requirements before running.")
             render_empty_state()
         else:
+            result = None
+            data = None
             try:
-                                result = None
-                data = None
                 with st.spinner("Auditing resume against target role... this can take up to a minute."):
                     for attempt in range(2):
                         crew = build_crew(resume_text, job_title, job_url, requirements)
